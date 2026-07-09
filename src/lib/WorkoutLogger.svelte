@@ -467,9 +467,11 @@
      - avg pause shown after all sets of an exercise completed
      - more presets: 180s, 260s added
   */
-  .logger { display: flex; flex-direction: column; gap: 14px; }
-  .start, .active-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .add-ex { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .logger { display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+  .start, .active-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; overflow: hidden; }
+  .add-ex { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; overflow: hidden; }
+  .start .input,
+  .active-head .input { flex: 1 1 0; min-width: 0; width: 100%; }
   .timer { 
     display: flex; gap: 4px; align-items: center; 
     font-variant-numeric: tabular-nums; 
@@ -481,6 +483,7 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 12px;
+    overflow: hidden; /* prevent inner elements from sticking out on narrow screens */
   }
   .ex-head { margin-bottom: 4px; font-size: 15px; font-weight: 600; }
 
@@ -490,9 +493,12 @@
     gap: 6px;
     margin-bottom: 8px;
     flex-wrap: wrap;
+    overflow: hidden;
   }
   .ex-defaults .label { font-size: 12px; opacity: 0.7; }
-  .ex-defaults .wgroup { display: flex; align-items: center; gap: 2px; }
+  .ex-defaults .wgroup { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+  .ex-defaults .wgroup .bigbtn,
+  .ex-defaults .wgroup .num { flex-shrink: 1; min-width: 36px; }
   .ex-defaults .hint { font-size: 11px; opacity: 0.6; margin-left: 6px; }
   .ex-defaults .btn.small { font-size: 12px; padding: 4px 8px; min-height: 32px; }
 
@@ -558,6 +564,8 @@
     .timer button { min-height: 40px; padding: 6px 10px; }
     .ex-block { padding: 10px; }
     .ex-defaults .wgroup { flex-wrap: wrap; }
+    .ex-defaults .wgroup .bigbtn,
+    .ex-defaults .wgroup .num { min-width: 32px; padding: 4px 6px; }
   }
 
   /* Universal touch improvements */

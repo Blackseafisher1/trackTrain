@@ -388,28 +388,36 @@
 
 <style>
   /* Scoped styles per css_guides */
-  .plans { display: flex; flex-direction: column; gap: 14px; }
+  .plans { display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
   .head { display: flex; justify-content: space-between; align-items: center; }
-  .editor { border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .editor { border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
   .row { display: flex; gap: 8px; }
-  .add-ex { display: flex; flex-direction: column; gap: 6px; }
-  .add-header { display: flex; gap: 8px; align-items: center; }
+  .row .input { flex: 1 1 0; min-width: 0; width: 100%; }
+  .add-ex { display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+  .add-header { display: flex; gap: 8px; align-items: center; overflow: hidden; }
   .group-toggle { display: flex; align-items: center; gap: 4px; font-size: 13px; }
-  .ex-list { display: flex; flex-wrap: wrap; gap: 4px; }
-  .grouped { display: flex; flex-direction: column; gap: 8px; }
+  .ex-list { display: flex; flex-wrap: wrap; gap: 4px; overflow: hidden; }
+  .grouped { display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
   .group-title { font-size: 12px; font-weight: 600; opacity: 0.7; margin-bottom: 2px; text-transform: capitalize; }
   .ex-chip {
     padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); font-size: 14px; cursor: pointer;
     min-height: 44px; touch-action: manipulation;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .ex-chip small { opacity: 0.6; margin-left: 4px; }
   .plan-ex-list { display: flex; flex-direction: column; gap: 10px; }
-  .plan-ex { border: 1px solid var(--border); padding: 8px; border-radius: 6px; }
-  .ex-name { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .plan-ex { border: 1px solid var(--border); padding: 8px; border-radius: 6px; overflow: hidden; }
+  .ex-name { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
+  .ex-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
   .order-btns { display: flex; gap: 2px; align-items: center; }
   .config { display: flex; flex-wrap: wrap; gap: 12px; }
   .cfg { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
-  .cfg.weight .w-controls { display: flex; align-items: center; gap: 2px; }
+  .cfg.weight .w-controls { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+  .cfg.weight .w-controls .tiny,
+  .cfg.weight .w-controls .num { min-width: 28px; }
   .tiny { padding: 2px 6px; font-size: 12px; }
   .num { width: 52px; text-align: center; }
   .actions { display: flex; gap: 8px; justify-content: flex-end; }
@@ -428,6 +436,11 @@
     .config { flex-direction: column; }
     .plan-card { flex-direction: column; align-items: stretch; }
     .ex-chip, .btn, .tiny { min-height: 44px; padding: 8px 12px; font-size: 15px; }
+    .row { flex-direction: column; }
+    .add-header { flex-direction: column; align-items: flex-start; }
+    .add-header .input { width: 100%; }
+    .num { width: 42px; }
+    .w-controls .tiny { padding: 1px 4px; font-size: 11px; }
   }
 
   .active-header {
