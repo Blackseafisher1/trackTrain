@@ -126,6 +126,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));
     background: var(--bg);
     border-bottom: 1px solid var(--border);
     flex-wrap: wrap;

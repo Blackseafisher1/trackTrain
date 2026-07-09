@@ -49,11 +49,9 @@ export function applyAccentColor(color: string) {
   root.style.setProperty('--accent-bg', hexToRgba(color, 0.12));
   root.style.setProperty('--accent-border', hexToRgba(color, 0.55));
 
-  // Also apply to PWA header / status bar color
-  const metaTheme = document.querySelector('meta[name="theme-color"]');
-  if (metaTheme) {
-    metaTheme.setAttribute('content', color);
-  }
+  // Note: theme-color meta is set statically in index.html with media queries
+  // for light/dark background colors (white/dark per system). This makes the
+  // status bar (time/battery area) solid, not transparent.
 }
 
 // Call this on app start
