@@ -4,15 +4,15 @@
   
   <!-- Left plate -->
   <rect x="8" y="28" width="32" height="64" rx="8"/>
-  <!-- Left plate inner highlight -->
+  <!-- Left plate inner -->
   <rect x="14" y="36" width="20" height="48" rx="4" fill="#fff"/>
   
   <!-- Right plate -->
   <rect x="160" y="28" width="32" height="64" rx="8"/>
-  <!-- Right plate inner highlight -->
+  <!-- Right plate inner -->
   <rect x="166" y="36" width="20" height="48" rx="4" fill="#fff"/>
   
-  <!-- Track indicators (small vertical lines representing progress/data) -->
+  <!-- Track indicators (small lines representing data/progress) -->
   <rect x="55" y="46" width="6" height="28" rx="2" fill="#fff"/>
   <rect x="75" y="42" width="6" height="36" rx="2" fill="#fff"/>
   <rect x="95" y="48" width="6" height="24" rx="2" fill="#fff"/>
