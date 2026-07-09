@@ -12,6 +12,7 @@ export interface AppSettings {
   showDeleteButton: boolean;
   accentColor: string;
   hideBrand: boolean; // hide "GymTrack" text in header for more vertical space
+  ultraDarkMode: boolean; // pure black #000 for OLED dark mode
 }
 
 const defaultSettings: AppSettings = {
@@ -20,6 +21,7 @@ const defaultSettings: AppSettings = {
   showDeleteButton: true,
   accentColor: '#06b6d4',
   hideBrand: false,
+  ultraDarkMode: false,
 };
 
 function loadSettings(): AppSettings {
@@ -40,12 +42,13 @@ function saveSettings(settings: AppSettings) {
 
 export const settings = writable<AppSettings>(loadSettings());
 
-// Apply accent color whenever it changes
+// Apply theme settings whenever they change
 settings.subscribe((value) => {
   saveSettings(value);
   if (value.accentColor) {
     applyAccentColor(value.accentColor);
   }
+  applyUltraDarkMode(!!value.ultraDarkMode);
 });
 
 export function updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {

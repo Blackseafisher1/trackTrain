@@ -58,3 +58,12 @@ export function applyAccentColor(color: string) {
 export function initTheme() {
   // Will be called after settings load
 }
+
+export function applyUltraDarkMode(enabled: boolean) {
+  const root = document.documentElement;
+  if (enabled) {
+    root.classList.add('ultra-dark');
+  } else {
+    root.classList.remove('ultra-dark');
+  }
+}

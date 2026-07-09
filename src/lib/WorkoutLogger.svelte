@@ -374,22 +374,21 @@
           <button class="btn" onclick={stopTimer}>stop</button>
         </div>
 
-        <!-- Single weight for the exercise (default: same for all sets).
-             Cleaner UI by default. Toggle to show per-set weight editing. -->
-        <div class="ex-defaults">
+        <!-- Weight controls: buttons + value all in one compact line -->
+        <div class="ex-defaults weight-row">
           <span class="label">Weight</span>
           <div class="wgroup">
             <button class="bigbtn" onclick={() => applyDefaultWeight(i, getDefaultWeight(i) - 5)}>-5</button>
             <button class="bigbtn" onclick={() => applyDefaultWeight(i, getDefaultWeight(i) - 2.5)}>-2.5</button>
             <input type="number" class="num" value={getDefaultWeight(i)} 
                    oninput={(e:any) => applyDefaultWeight(i, parseFloat(e.target.value) || 0)} />
+            <span class="unit">kg</span>
             <button class="bigbtn" onclick={() => applyDefaultWeight(i, getDefaultWeight(i) + 2.5)}>+2.5</button>
             <button class="bigbtn" onclick={() => applyDefaultWeight(i, getDefaultWeight(i) + 5)}>+5</button>
-            <button class="btn small" onclick={() => togglePerSetWeights(i)}>
-              {shouldShowPerSet(i) ? 'Hide per set' : 'Per set'}
-            </button>
           </div>
-          <span class="hint">kg (applies to sets unless per-set on)</span>
+          <button class="btn small" onclick={() => togglePerSetWeights(i)}>
+            {shouldShowPerSet(i) ? 'Hide per set' : 'Per set'}
+          </button>
         </div>
 
         <button class="btn small" onclick={() => markExerciseDone(i)}>Mark whole exercise done</button>
@@ -495,11 +494,15 @@
     flex-wrap: wrap;
     overflow: hidden;
   }
+  .ex-defaults.weight-row {
+    flex-wrap: nowrap; /* weight label + buttons + value + unit all in one line */
+    align-items: center;
+  }
   .ex-defaults .label { font-size: 12px; opacity: 0.7; }
-  .ex-defaults .wgroup { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+  .ex-defaults .wgroup { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; }
   .ex-defaults .wgroup .bigbtn,
   .ex-defaults .wgroup .num { flex-shrink: 1; min-width: 36px; }
-  .ex-defaults .hint { font-size: 11px; opacity: 0.6; margin-left: 6px; }
+  .ex-defaults .unit { font-size: 11px; opacity: 0.6; margin: 0 2px; }
   .ex-defaults .btn.small { font-size: 12px; padding: 4px 8px; min-height: 32px; }
 
   .set-row {
@@ -516,7 +519,8 @@
     min-width: 44px;
   }
 
-  .weight, .reps { display: flex; align-items: center; gap: 2px; }
+  .weight, .reps { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; }
+  .weight .bigbtn, .weight .num { min-width: 32px; }
   .bigbtn {
     padding: 8px 12px; font-size: 16px; border: 1px solid var(--border); background: var(--bg);
     border-radius: 6px; min-width: 48px; min-height: 44px; cursor: pointer;

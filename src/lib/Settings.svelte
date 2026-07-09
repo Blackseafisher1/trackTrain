@@ -1,6 +1,6 @@
 <script lang="ts">
   // Settings page. Keep simple.
-  // Controls default UI cleanliness + custom accent color.
+  // Controls UI options + custom accent + ultra dark for OLED.
 
   import { settings, updateSetting } from './settings';
   import { isValidAccentColor } from './theme';
@@ -10,6 +10,7 @@
   let showDel = $state($settings.showDeleteButton);
   let accentColor = $state($settings.accentColor);
   let hideBrand = $state($settings.hideBrand);
+  let ultraDark = $state($settings.ultraDarkMode);
 
   $effect(() => {
     updateSetting('showPerSetWeights', showPerSet);
@@ -22,6 +23,9 @@
   });
   $effect(() => {
     updateSetting('hideBrand', hideBrand);
+  });
+  $effect(() => {
+    updateSetting('ultraDarkMode', ultraDark);
   });
 
   function handleAccentChange(e: Event) {
@@ -94,6 +98,16 @@
     </label>
     <p class="help">
       Hides the brand text to give more vertical space on small screens (e.g. phones).
+    </p>
+  </div>
+
+  <div class="setting">
+    <label>
+      <input type="checkbox" bind:checked={ultraDark} />
+      Ultra dark mode for OLED (pure black #000)
+    </label>
+    <p class="help">
+      Makes dark mode use pure black background for better contrast and battery on OLED screens.
     </p>
   </div>
 

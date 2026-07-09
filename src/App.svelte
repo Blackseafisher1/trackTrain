@@ -137,8 +137,8 @@
     gap: 4px;
   }
   header.no-brand {
-    padding-top: 4px;
     padding-bottom: 4px;
+    /* keep top padding (incl. safe-area) so status bar doesn't overlap */
   }
   header.no-brand nav {
     flex: 1;
