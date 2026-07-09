@@ -45,7 +45,8 @@ self.onmessage = async (e: MessageEvent) => {
         if (payload.bind) opts.bind = payload.bind;
         const rows = db.exec(payload.sql, opts);
         const changes = sqlite3.capi.sqlite3_changes(db.pointer);
-        result = { rows, changes };
+        const lastInsertRowId = sqlite3.capi.sqlite3_last_insert_rowid(db.pointer);
+        result = { rows, changes, lastInsertRowId };
         break;
       }
       case 'execMany': {

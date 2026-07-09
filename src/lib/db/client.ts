@@ -243,9 +243,7 @@ export async function addCustomExercise(name: string, muscleGroups: string[], de
     sql: `INSERT INTO exercises (name, muscle_groups, category, description, is_custom) VALUES (?, ?, 'strength', ?, 1)`,
     bind: [name, JSON.stringify(muscleGroups), description || null],
   });
-  // return last id via another query simple
-  const idRes = await post('exec', { sql: 'SELECT last_insert_rowid() as id', rowMode: 'object' });
-  return idRes.rows?.[0]?.id || 0;
+  return res.lastInsertRowId || 0;
 }
 
 export async function updateExercise(id: number, name: string, muscleGroups: string[], description = '') {
@@ -264,21 +262,19 @@ export async function deleteExercise(id: number) {
 
 export async function createWorkout(name?: string, notes?: string): Promise<number> {
   const now = new Date().toISOString();
-  await post('exec', {
+  const res = await post('exec', {
     sql: `INSERT INTO workouts (date, name, notes) VALUES (?, ?, ?)`,
     bind: [now, name || null, notes || null],
   });
-  const idRes = await post('exec', { sql: 'SELECT last_insert_rowid() as id', rowMode: 'object' });
-  return idRes.rows?.[0]?.id || 0;
+  return res.lastInsertRowId || 0;
 }
 
 export async function addWorkoutExercise(workoutId: number, exerciseId: number, order: number): Promise<number> {
-  await post('exec', {
+  const res = await post('exec', {
     sql: `INSERT INTO workout_exercises (workout_id, exercise_id, exercise_order) VALUES (?, ?, ?)`,
     bind: [workoutId, exerciseId, order],
   });
-  const idRes = await post('exec', { sql: 'SELECT last_insert_rowid() as id', rowMode: 'object' });
-  return idRes.rows?.[0]?.id || 0;
+  return res.lastInsertRowId || 0;
 }
 
 export async function addSet(workoutExerciseId: number, setOrder: number, weight?: number, reps?: number, rpe?: number, notes?: string) {
@@ -392,12 +388,11 @@ export function calcVolume(weight: number | null | undefined, reps: number | nul
 // ========== PLANS ==========
 
 export async function createPlan(name: string, notes?: string): Promise<number> {
-  await post('exec', {
+  const res = await post('exec', {
     sql: `INSERT INTO plans (name, notes) VALUES (?, ?)`,
     bind: [name, notes || null],
   });
-  const idRes = await post('exec', { sql: 'SELECT last_insert_rowid() as id', rowMode: 'object' });
-  return idRes.rows?.[0]?.id || 0;
+  return res.lastInsertRowId || 0;
 }
 
 export async function addPlanExercise(
@@ -408,13 +403,12 @@ export async function addPlanExercise(
   defaultWeight?: number,
   defaultReps?: number
 ): Promise<number> {
-  await post('exec', {
+  const res = await post('exec', {
     sql: `INSERT INTO plan_exercises (plan_id, exercise_id, exercise_order, sets_count, default_weight_kg, default_reps)
           VALUES (?, ?, ?, ?, ?, ?)`,
     bind: [planId, exerciseId, order, setsCount, defaultWeight ?? null, defaultReps ?? null],
   });
-  const idRes = await post('exec', { sql: 'SELECT last_insert_rowid() as id', rowMode: 'object' });
-  return idRes.rows?.[0]?.id || 0;
+  return res.lastInsertRowId || 0;
 }
 
 export async function getPlans(): Promise<any[]> {

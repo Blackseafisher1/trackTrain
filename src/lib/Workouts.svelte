@@ -33,6 +33,9 @@
   // Active workout session shown inline when started (replaces separate log tab)
   let activeWorkoutId = $state<number | null>(null);
 
+  // Prevent double-starts (race on rapid clicks before first insert resolves)
+  let startingPlanId = $state<number | null>(null);
+
   async function loadPlans() {
     loading = true;
     plans = await db.getPlans();
@@ -200,6 +203,8 @@
   }
 
   async function doStart(p: Plan) {
+    if (startingPlanId) return;
+    startingPlanId = p.id;
     try {
       const workoutId = await db.startWorkoutFromPlan(p.id);
       // Directly activate the tracking view inside this component
@@ -208,6 +213,8 @@
       // no alert, view switches immediately via state
     } catch (e) {
       alert('Failed to start workout: ' + e);
+    } finally {
+      startingPlanId = null;
     }
   }
 
@@ -368,7 +375,9 @@
             <small class="count">{p.exercise_count || 0} exercises</small>
           </div>
           <div class="pactions">
-            <button class="btn primary" onclick={() => doStart(p)}>Start</button>
+            <button class="btn primary" disabled={startingPlanId === p.id} onclick={() => doStart(p)}>
+              {startingPlanId === p.id ? 'Starting…' : 'Start'}
+            </button>
             <button class="btn" onclick={() => startEdit(p)}>Edit</button>
             <button class="btn danger" onclick={() => doDelete(p)}>Delete</button>
           </div>
