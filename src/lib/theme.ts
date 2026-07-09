@@ -48,6 +48,12 @@ export function applyAccentColor(color: string) {
   root.style.setProperty('--accent', color);
   root.style.setProperty('--accent-bg', hexToRgba(color, 0.12));
   root.style.setProperty('--accent-border', hexToRgba(color, 0.55));
+
+  // Also apply to PWA header / status bar color
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) {
+    metaTheme.setAttribute('content', color);
+  }
 }
 
 // Call this on app start
