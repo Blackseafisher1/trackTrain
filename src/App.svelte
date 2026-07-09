@@ -18,6 +18,8 @@
   let pendingLoadWorkoutId = $state<number | null>(null);
   let ready = $state(false);
   let error = $state<string | null>(null);
+  let deferredPrompt: any = $state(null);
+  let isStandalone = $state(false);
 
   onMount(async () => {
     try {
@@ -33,6 +35,15 @@
           tab = 'workouts';
         }
       });
+
+      // PWA install prompt
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+      });
+
+      isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                     (navigator as any).standalone === true;
     } catch (e: any) {
       error = 'DB init failed: ' + (e?.message || e);
       console.error(e);
@@ -41,6 +52,13 @@
 
   function setTab(t: typeof tab) {
     tab = t;
+  }
+
+  async function installApp() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
   }
 
   // When on workouts, consume any pending workout id (from start) to show the logger inline
@@ -61,13 +79,25 @@
     <button class:active={tab==='progress'} onclick={() => setTab('progress')}>Progress</button>
     <button class:active={tab==='settings'} onclick={() => setTab('settings')}>Settings</button>
   </nav>
+
+  {#if !isStandalone && deferredPrompt}
+    <button class="install-btn" onclick={installApp}>Add to Home Screen</button>
+  {/if}
 </header>
 
 <main>
   {#if !ready}
     <div class="loading">Loading local DB (OPFS)...</div>
   {:else if error}
-    <div class="error">{error}</div>
+    <div class="error-box">
+      <strong>⚠️ Storage Error (OPFS)</strong>
+      <p>{error}</p>
+      <p><strong>Fix:</strong> Close any other tabs/windows of GymTrack, then reload.</p>
+      <p><strong>Pro tip:</strong> Add this app to your home screen (browser menu → Install / Add to Home Screen). It will then feel like a real native app and avoid multi-tab conflicts.</p>
+      {#if !isStandalone && deferredPrompt}
+        <button class="btn primary" onclick={installApp} style="margin-top: 8px;">Add to Home Screen now</button>
+      {/if}
+    </div>
   {:else}
     {#if tab === 'library'}
       <ExerciseLibrary />
@@ -98,6 +128,8 @@
     padding: 8px 12px;
     background: var(--bg);
     border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 4px;
   }
   .brand {
     font-weight: 600;
@@ -123,6 +155,29 @@
     font-weight: 500;
   }
 
+  .install-btn {
+    font-size: 12px;
+    padding: 4px 10px;
+    background: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    .install-btn {
+      font-size: 11px;
+      padding: 4px 8px;
+    }
+  }
+
+  .error-box .btn {
+    font-size: 13px;
+    padding: 6px 14px;
+  }
+
   main {
     padding: 12px 4px;
     max-width: 100%;
@@ -130,12 +185,22 @@
     box-sizing: border-box;
   }
 
-  .loading, .error {
+  .loading, .error-box {
     padding: 40px 12px;
     text-align: center;
     color: var(--text);
   }
-  .error { color: #e11d48; }
+  .error-box {
+    border: 2px solid #e11d48;
+    background: rgba(225, 29, 72, 0.08);
+    border-radius: 8px;
+    max-width: 600px;
+    margin: 20px auto;
+    padding: 20px;
+    text-align: left;
+  }
+  .error-box strong { color: #e11d48; display: block; margin-bottom: 8px; font-size: 1.1em; }
+  .error-box p { margin: 8px 0; line-height: 1.4; }
 
   /* responsive */
   @media (max-width: 640px) {

@@ -34,12 +34,23 @@ export async function initDb(baseUrl = '/sqlite/'): Promise<{ success: boolean }
   // Vite worker import. TS worker ok.
   worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
   worker.onmessage = handleMessage;
-  // init inside worker
-  const res = await post('init', { baseUrl });
-  // ensure schema + seed on first use
-  await ensureSchema();
-  await seedDefaultsIfEmpty();
-  return res;
+  try {
+    // init inside worker
+    const res = await post('init', { baseUrl });
+    // ensure schema + seed on first use
+    await ensureSchema();
+    await seedDefaultsIfEmpty();
+    return res;
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    if (msg.toLowerCase().includes('opfs') || msg.toLowerCase().includes('access') || msg.toLowerCase().includes('lock') || msg.toLowerCase().includes('another')) {
+      throw new Error(
+        'Could not open local storage (OPFS). Close all other tabs of this app and try again. ' +
+        'Best experience: Add to your home screen so it runs like a standalone app.'
+      );
+    }
+    throw err;
+  }
 }
 
 async function ensureSchema() {
