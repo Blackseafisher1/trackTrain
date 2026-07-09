@@ -1,0 +1,12 @@
+{
+  "name": "GymTrack Local",
+  "short_name": "GymTrack",
+  "description": "Local-first strength training tracker. Everything stays on device.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff",
+  "theme_color": "#aa3bff",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
