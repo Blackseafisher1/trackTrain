@@ -3,7 +3,7 @@
   // Controls UI options + custom accent + ultra dark for OLED.
 
   import { settings, updateSetting } from './settings';
-  import { isValidAccentColor } from './theme';
+  import { isValidAccentColor, applyUltraDarkMode } from './theme';
 
   let showPerSet = $state($settings.showPerSetWeights);
   let showDup = $state($settings.showDuplicateButton);
@@ -26,6 +26,7 @@
   });
   $effect(() => {
     updateSetting('ultraDarkMode', ultraDark);
+    applyUltraDarkMode(ultraDark);
   });
 
   function handleAccentChange(e: Event) {

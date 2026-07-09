@@ -2,7 +2,7 @@
 // Default: hide per-set weight editing (assume same weight for exercise).
 
 import { writable } from 'svelte/store';
-import { applyAccentColor } from './theme';
+import { applyAccentColor, applyUltraDarkMode } from './theme';
 
 const STORAGE_KEY = 'gymtrack_settings';
 
@@ -42,13 +42,12 @@ function saveSettings(settings: AppSettings) {
 
 export const settings = writable<AppSettings>(loadSettings());
 
-// Apply theme settings whenever they change
+// Apply accent color whenever it changes
 settings.subscribe((value) => {
   saveSettings(value);
   if (value.accentColor) {
     applyAccentColor(value.accentColor);
   }
-  applyUltraDarkMode(!!value.ultraDarkMode);
 });
 
 export function updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
