@@ -41,7 +41,7 @@ export function isValidAccentColor(hex: string): boolean {
 
 export function applyAccentColor(color: string) {
   if (!isValidAccentColor(color)) {
-    color = '#aa3bff'; // fallback to default pink
+    color = '#06b6d4'; // fallback to cyan
   }
 
   const root = document.documentElement;

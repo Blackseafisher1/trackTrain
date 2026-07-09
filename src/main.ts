@@ -7,7 +7,7 @@ import { applyAccentColor } from './lib/theme'
 
 // Apply saved accent color on startup (before app mounts)
 const currentSettings = get(settings)
-applyAccentColor(currentSettings.accentColor ?? '#aa3bff')
+applyAccentColor(currentSettings.accentColor ?? '#06b6d4')
 
 const app = mount(App, {
   target: document.getElementById('app')!,

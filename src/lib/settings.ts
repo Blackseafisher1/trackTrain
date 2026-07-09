@@ -17,7 +17,7 @@ const defaultSettings: AppSettings = {
   showPerSetWeights: false,
   showDuplicateButton: true,
   showDeleteButton: true,
-  accentColor: '#aa3bff',
+  accentColor: '#06b6d4',
 };
 
 function loadSettings(): AppSettings {
