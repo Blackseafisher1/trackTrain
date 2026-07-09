@@ -11,6 +11,7 @@ export interface AppSettings {
   showDuplicateButton: boolean;
   showDeleteButton: boolean;
   accentColor: string;
+  hideBrand: boolean; // hide "GymTrack" text in header for more vertical space
 }
 
 const defaultSettings: AppSettings = {
@@ -18,6 +19,7 @@ const defaultSettings: AppSettings = {
   showDuplicateButton: true,
   showDeleteButton: true,
   accentColor: '#06b6d4',
+  hideBrand: false,
 };
 
 function loadSettings(): AppSettings {

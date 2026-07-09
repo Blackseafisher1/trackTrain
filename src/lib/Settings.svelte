@@ -9,6 +9,7 @@
   let showDup = $state($settings.showDuplicateButton);
   let showDel = $state($settings.showDeleteButton);
   let accentColor = $state($settings.accentColor);
+  let hideBrand = $state($settings.hideBrand);
 
   $effect(() => {
     updateSetting('showPerSetWeights', showPerSet);
@@ -18,6 +19,9 @@
   });
   $effect(() => {
     updateSetting('showDeleteButton', showDel);
+  });
+  $effect(() => {
+    updateSetting('hideBrand', hideBrand);
   });
 
   function handleAccentChange(e: Event) {
@@ -80,6 +84,16 @@
     />
     <p class="help">
       Pick your accent color. Avoid very dark or very light colors for good contrast.
+    </p>
+  </div>
+
+  <div class="setting">
+    <label>
+      <input type="checkbox" bind:checked={hideBrand} />
+      Hide "GymTrack" text in header
+    </label>
+    <p class="help">
+      Hides the brand text to give more vertical space on small screens (e.g. phones).
     </p>
   </div>
 

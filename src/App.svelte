@@ -5,6 +5,7 @@
   // Start button loads the active workout logger UI inside Workouts tab (old flow).
   // Data feeds History/Progress. DB init on mount. Follows full GymTrack spec MVP + css_guides + OPFS.
   // Keep simple. One-handed friendly controls. All data via sqlite OPFS worker.
+  // Setting to hide brand text for more vertical space on small screens.
   import { onMount } from 'svelte';
   import * as db from './lib/db/client';
   import ExerciseLibrary from './lib/ExerciseLibrary.svelte';
@@ -13,6 +14,7 @@
   import Workouts from './lib/Workouts.svelte';
   import Settings from './lib/Settings.svelte';
   import { consumePendingWorkout } from './lib/pendingWorkout';
+  import { settings } from './lib/settings';
 
   let tab = $state<'library' | 'history' | 'progress' | 'workouts' | 'settings'>('workouts');
   let pendingLoadWorkoutId = $state<number | null>(null);
@@ -70,8 +72,10 @@
   });
 </script>
 
-<header>
+<header class:no-brand={$settings.hideBrand}>
+  {#if !$settings.hideBrand}
   <div class="brand">GymTrack</div>
+  {/if}
   <nav>
     <button class:active={tab==='library'} onclick={() => setTab('library')}>Library</button>
     <button class:active={tab==='workouts'} onclick={() => setTab('workouts')}>Workouts</button>
@@ -131,6 +135,14 @@
     border-bottom: 1px solid var(--border);
     flex-wrap: wrap;
     gap: 4px;
+  }
+  header.no-brand {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  header.no-brand nav {
+    flex: 1;
+    justify-content: center;
   }
   .brand {
     font-weight: 600;
