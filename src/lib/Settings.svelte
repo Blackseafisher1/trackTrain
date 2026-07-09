@@ -1,14 +1,14 @@
 <script lang="ts">
   // Settings page. Keep simple.
-  // Controls default UI cleanliness: by default hide per-set weight editing.
-  // Assume weight stays the same for the exercise (1 weight shown).
-  // Toggle reveals per-set weight overrides if needed.
+  // Controls default UI cleanliness + custom accent color.
 
   import { settings, updateSetting } from './settings';
+  import { isValidAccentColor } from './theme';
 
   let showPerSet = $state($settings.showPerSetWeights);
   let showDup = $state($settings.showDuplicateButton);
   let showDel = $state($settings.showDeleteButton);
+  let accentColor = $state($settings.accentColor);
 
   $effect(() => {
     updateSetting('showPerSetWeights', showPerSet);
@@ -19,6 +19,20 @@
   $effect(() => {
     updateSetting('showDeleteButton', showDel);
   });
+
+  function handleAccentChange(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const newColor = target.value;
+
+    if (isValidAccentColor(newColor)) {
+      accentColor = newColor;
+      updateSetting('accentColor', newColor);
+    } else {
+      // Revert to previous valid color
+      target.value = accentColor;
+      alert('Please choose a color with better contrast (not too close to black or white).');
+    }
+  }
 </script>
 
 <div class="settings">
@@ -53,6 +67,19 @@
     </label>
     <p class="help">
       Allows deleting past workouts from history.
+    </p>
+  </div>
+
+  <div class="setting">
+    <label>Accent color</label>
+    <input
+      type="color"
+      value={accentColor}
+      oninput={handleAccentChange}
+      style="width: 60px; height: 40px; padding: 0; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;"
+    />
+    <p class="help">
+      Pick your accent color. Avoid very dark or very light colors for good contrast.
     </p>
   </div>
 
