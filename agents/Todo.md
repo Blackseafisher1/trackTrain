@@ -1,4 +1,1 @@
-- Add Setting for disabling paus traking
-- Add support for suppersets ( 2 exercise in one set where its mean so that you do 2 exercises like bicep curl and tricep pushdown  with only 1 pause to safe time)
-- add that  you can enable in settings autmatic puase time trakcing where we start timer on  ticking a  set as done  and time  autmaticlaly start   and we need a cnotication toast system simple  but here we use it for timer we show the time and say pause time done so you don hav to start timemr manuel and if pause time trakcing is one its gettign tracked  and  for a exersie  or combine exeriserte ( supersets) you can set pause time defualt 3 min but you can change per exersive in the workout 
-- make sure the toast system is so that you can set a height where ti shoudl appere  make sure ti dose not 
+See agents/pause-supersets-plan.md for the short implementation plan (uses "workout" for the templates).

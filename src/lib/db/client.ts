@@ -97,7 +97,7 @@ async function ensureSchema() {
     // Plans support: template of exercises + defaults for sets
     `CREATE TABLE IF NOT EXISTS plans (
       id INTEGER PRIMARY KEY,
-      name TEXT NOT NULL,
+      name TEXT NOT NULL UNIQUE,
       notes TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );`,
@@ -118,6 +118,15 @@ async function ensureSchema() {
   try {
     await post('exec', { sql: 'ALTER TABLE sets ADD COLUMN completed INTEGER DEFAULT 0' });
   } catch (_) {}
+
+  // New columns for pause/rest times and supersets (safe adds)
+  try { await post('exec', { sql: 'ALTER TABLE plan_exercises ADD COLUMN default_rest_seconds INTEGER DEFAULT 180' }); } catch (_) {}
+  try { await post('exec', { sql: 'ALTER TABLE plan_exercises ADD COLUMN superset_group INTEGER' }); } catch (_) {}
+  try { await post('exec', { sql: 'ALTER TABLE workout_exercises ADD COLUMN rest_seconds INTEGER DEFAULT 180' }); } catch (_) {}
+  try { await post('exec', { sql: 'ALTER TABLE workout_exercises ADD COLUMN superset_group INTEGER' }); } catch (_) {}
+
+  // Enforce unique plan names (safe; will fail silently if duplicates exist in old DBs)
+  try { await post('exec', { sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_plans_name ON plans(name)' }); } catch (_) {}
 }
 
 async function seedDefaultsIfEmpty() {
@@ -269,10 +278,10 @@ export async function createWorkout(name?: string, notes?: string): Promise<numb
   return Number(res.lastInsertRowId) || 0;
 }
 
-export async function addWorkoutExercise(workoutId: number, exerciseId: number, order: number): Promise<number> {
+export async function addWorkoutExercise(workoutId: number, exerciseId: number, order: number, restSeconds?: number, supersetGroup?: number | null): Promise<number> {
   const res = await post('exec', {
-    sql: `INSERT INTO workout_exercises (workout_id, exercise_id, exercise_order) VALUES (?, ?, ?)`,
-    bind: [workoutId, exerciseId, order],
+    sql: `INSERT INTO workout_exercises (workout_id, exercise_id, exercise_order, rest_seconds, superset_group) VALUES (?, ?, ?, ?, ?)`,
+    bind: [workoutId, exerciseId, order, restSeconds ?? 180, supersetGroup ?? null],
   });
   return Number(res.lastInsertRowId) || 0;
 }
@@ -313,7 +322,7 @@ export async function getWorkoutDetail(workoutId: number): Promise<WorkoutDetail
   if (!w) return null;
 
   const weRes = await post('exec', {
-    sql: `SELECT we.id, we.exercise_order, e.id as exercise_id, e.name, e.muscle_groups 
+    sql: `SELECT we.id, we.exercise_order, we.rest_seconds, we.superset_group, e.id as exercise_id, e.name, e.muscle_groups 
           FROM workout_exercises we 
           JOIN exercises e ON e.id=we.exercise_id 
           WHERE we.workout_id=? ORDER BY we.exercise_order`,
@@ -334,6 +343,8 @@ export async function getWorkoutDetail(workoutId: number): Promise<WorkoutDetail
       name: we.name,
       muscle_groups: we.muscle_groups || '[]',
       order: we.exercise_order,
+      rest_seconds: we.rest_seconds ?? 180,
+      superset_group: we.superset_group ?? null,
       sets: sRes.rows || [],
     });
   }
@@ -352,7 +363,7 @@ export async function duplicateWorkout(sourceId: number): Promise<number> {
 
   let exOrder = 1;
   for (const ex of src.exercises) {
-    const weId = await addWorkoutExercise(newId, ex.exercise_id, exOrder++);
+    const weId = await addWorkoutExercise(newId, ex.exercise_id, exOrder++, ex.rest_seconds ?? 180, ex.superset_group ?? null);
     let setOrder = 1;
     for (const s of ex.sets) {
       await addSet(weId, setOrder++, s.weight_kg ?? undefined, s.reps ?? undefined, s.rpe ?? undefined, s.notes ?? undefined);
@@ -401,12 +412,14 @@ export async function addPlanExercise(
   order: number,
   setsCount: number,
   defaultWeight?: number,
-  defaultReps?: number
+  defaultReps?: number,
+  defaultRestSeconds?: number,
+  supersetGroup?: number | null
 ): Promise<number> {
   const res = await post('exec', {
-    sql: `INSERT INTO plan_exercises (plan_id, exercise_id, exercise_order, sets_count, default_weight_kg, default_reps)
-          VALUES (?, ?, ?, ?, ?, ?)`,
-    bind: [planId, exerciseId, order, setsCount, defaultWeight ?? null, defaultReps ?? null],
+    sql: `INSERT INTO plan_exercises (plan_id, exercise_id, exercise_order, sets_count, default_weight_kg, default_reps, default_rest_seconds, superset_group)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    bind: [planId, exerciseId, order, setsCount, defaultWeight ?? null, defaultReps ?? null, defaultRestSeconds ?? 180, supersetGroup ?? null],
   });
   return Number(res.lastInsertRowId) || 0;
 }
@@ -422,6 +435,17 @@ export async function getPlans(): Promise<any[]> {
     rowMode: 'object',
   });
   return res.rows || [];
+}
+
+export async function planNameExists(name: string, excludeId: number | null = null): Promise<boolean> {
+  let sql = 'SELECT COUNT(*) as c FROM plans WHERE name = ?';
+  const bind: any[] = [name];
+  if (excludeId != null) {
+    sql += ' AND id != ?';
+    bind.push(excludeId);
+  }
+  const res = await post('exec', { sql, bind, rowMode: 'object' });
+  return (res.rows?.[0]?.c || 0) > 0;
 }
 
 export async function getPlanDetail(planId: number): Promise<{ plan: Plan; exercises: PlanExercise[] } | null> {
@@ -462,7 +486,13 @@ export async function startWorkoutFromPlan(planId: number): Promise<number> {
 
   let exOrder = 1;
   for (const pe of detail.exercises) {
-    const weId = await addWorkoutExercise(workoutId, pe.exercise_id, exOrder++);
+    const weId = await addWorkoutExercise(
+      workoutId,
+      pe.exercise_id,
+      exOrder++,
+      pe.default_rest_seconds ?? 180,
+      pe.superset_group ?? null
+    );
 
     const w = pe.default_weight_kg ?? undefined;
     const r = pe.default_reps ?? undefined;

@@ -48,6 +48,8 @@ export interface WorkoutDetail extends Workout {
     name: string;
     muscle_groups: string;
     order: number;
+    rest_seconds?: number;
+    superset_group?: number | null;
     sets: Set[];
   }>;
 }
@@ -75,6 +77,8 @@ export interface PlanExercise {
   sets_count: number;
   default_weight_kg?: number | null;
   default_reps?: number | null;
+  default_rest_seconds?: number | null;
+  superset_group?: number | null;
   name?: string; // joined
   muscle_groups?: string;
 }

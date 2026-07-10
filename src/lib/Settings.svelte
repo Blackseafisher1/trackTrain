@@ -11,6 +11,11 @@
   let accentColor = $state($settings.accentColor);
   let hideBrand = $state($settings.hideBrand);
   let ultraDark = $state($settings.ultraDarkMode);
+  let pauseEnabled = $state($settings.pauseTrackingEnabled);
+  let defaultRest = $state($settings.defaultRestSeconds);
+  let perExRest = $state($settings.perExerciseRestTimes);
+  let toastOffset = $state($settings.toastOffsetTop);
+  let notifEnabled = $state($settings.enableTimerNotifications);
 
   $effect(() => {
     updateSetting('showPerSetWeights', showPerSet);
@@ -28,6 +33,11 @@
     updateSetting('ultraDarkMode', ultraDark);
     applyUltraDarkMode(ultraDark);
   });
+  $effect(() => { updateSetting('pauseTrackingEnabled', pauseEnabled); });
+  $effect(() => { updateSetting('defaultRestSeconds', Math.max(30, Math.min(600, defaultRest))); });
+  $effect(() => { updateSetting('perExerciseRestTimes', perExRest); });
+  $effect(() => { updateSetting('toastOffsetTop', Math.max(0, toastOffset)); });
+  $effect(() => { updateSetting('enableTimerNotifications', notifEnabled); });
 
   function handleAccentChange(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -109,6 +119,52 @@
     </label>
     <p class="help">
       Makes dark mode use pure black background for better contrast and battery on OLED screens.
+    </p>
+  </div>
+
+  <div class="setting">
+    <label>
+      <input type="checkbox" bind:checked={pauseEnabled} />
+      Enable pause / rest tracking
+    </label>
+    <p class="help">
+      Records time between sets and shows avg pause. Turn off to disable all pause features.
+    </p>
+  </div>
+
+  <div class="setting">
+    <label>Default rest time (seconds)</label>
+    <input type="number" bind:value={defaultRest} min="30" max="600" step="15" style="width: 100px;" />
+    <p class="help">
+      Default for new exercises in workouts.
+    </p>
+  </div>
+
+  <div class="setting">
+    <label>
+      <input type="checkbox" bind:checked={perExRest} />
+      Allow per-exercise rest/pause times
+    </label>
+    <p class="help">
+      When enabled, you can set/adjust the rest timer individually per exercise (or superset) in a workout. Otherwise only the global default above is used.
+    </p>
+  </div>
+
+  <div class="setting">
+    <label>Toast top offset (px)</label>
+    <input type="number" bind:value={toastOffset} min="0" max="200" step="10" style="width: 100px;" />
+    <p class="help">
+      Adjust so timer toasts don't cover header or controls (uses safe-area too).
+    </p>
+  </div>
+
+  <div class="setting">
+    <label>
+      <input type="checkbox" bind:checked={notifEnabled} />
+      Timer notifications (when app in background)
+    </label>
+    <p class="help">
+      Ask for permission and show a short OS notification when rest timer ends (PWA hidden tab).
     </p>
   </div>
 

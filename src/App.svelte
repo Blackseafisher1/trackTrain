@@ -7,6 +7,7 @@
   // Keep simple. One-handed friendly controls. All data via sqlite OPFS worker.
   // Setting to hide brand text for more vertical space on small screens.
   import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
   import * as db from './lib/db/client';
   import ExerciseLibrary from './lib/ExerciseLibrary.svelte';
   import History from './lib/History.svelte';
@@ -103,17 +104,21 @@
       {/if}
     </div>
   {:else}
-    {#if tab === 'library'}
-      <ExerciseLibrary />
-    {:else if tab === 'workouts'}
-      <Workouts loadWorkoutId={pendingLoadWorkoutId} onLoaded={() => pendingLoadWorkoutId = null} />
-    {:else if tab === 'history'}
-      <History />
-    {:else if tab === 'progress'}
-      <ProgressView />
-    {:else if tab === 'settings'}
-      <Settings />
-    {/if}
+    {#key tab}
+      <div transition:fade={{ duration: 180 }}>
+        {#if tab === 'library'}
+          <ExerciseLibrary />
+        {:else if tab === 'workouts'}
+          <Workouts loadWorkoutId={pendingLoadWorkoutId} onLoaded={() => pendingLoadWorkoutId = null} />
+        {:else if tab === 'history'}
+          <History />
+        {:else if tab === 'progress'}
+          <ProgressView />
+        {:else if tab === 'settings'}
+          <Settings />
+        {/if}
+      </div>
+    {/key}
   {/if}
 </main>
 

@@ -13,6 +13,11 @@ export interface AppSettings {
   accentColor: string;
   hideBrand: boolean; // hide "GymTrack" text in header for more vertical space
   ultraDarkMode: boolean; // pure black #000 for OLED dark mode
+  pauseTrackingEnabled: boolean; // disable pause time recording
+  defaultRestSeconds: number; // default rest/pause time in seconds
+  perExerciseRestTimes: boolean; // allow setting/adjusting rest time per exercise (or superset)
+  toastOffsetTop: number; // px offset for toast position (avoid header/safe-area)
+  enableTimerNotifications: boolean; // ask for notif perm and show when hidden
 }
 
 const defaultSettings: AppSettings = {
@@ -22,6 +27,11 @@ const defaultSettings: AppSettings = {
   accentColor: '#06b6d4',
   hideBrand: false,
   ultraDarkMode: false,
+  pauseTrackingEnabled: true,
+  defaultRestSeconds: 180,
+  perExerciseRestTimes: false,
+  toastOffsetTop: 80,
+  enableTimerNotifications: true,
 };
 
 function loadSettings(): AppSettings {

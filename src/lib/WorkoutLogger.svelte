@@ -27,11 +27,10 @@
   let selectedExId = $state<number | 0>(0);
   let quickAddName = $state('');
 
-  // rest timer (global but controls duplicated per ex card for touch)
+  // rest timer for auto (starts on mark done for supersets etc.)
   let timerSec = $state(0);
   let timerInterval: any = null;
-  let timerPreset = $state(60);
-  const restPresets = [60, 90, 120, 180, 260]; // more options for in-between sets
+  let timerPreset = $state(180);
 
   // Pause tracking: locally for current session
   // When mark set done, record time since prev done set for that exercise
@@ -43,6 +42,46 @@
   let showPerSetFromSettings = $derived($settings.showPerSetWeights);
 
   let summary = $state<any>(null);
+
+  // Simple toast for auto rest timer (item 3+4)
+  let toasts = $state<any[]>([]); // { id, msg, secs?, done }
+  let toastId = 1;
+  let currentAutoToastId = $state<number | null>(null);
+
+  function showToast(msg: string, secs?: number) {
+    if (!$settings.pauseTrackingEnabled) return;
+    const id = toastId++;
+    const t = { id, msg, secs, done: false };
+    toasts = [...toasts, t];
+    if (secs != null && secs > 0) {
+      // will be updated by timer
+    }
+    return id;
+  }
+
+  function updateToast(id: number, secs: number) {
+    toasts = toasts.map(t => t.id === id ? { ...t, secs: Math.max(0, Math.round(secs)) } : t);
+  }
+
+  function finishToast(id: number) {
+    toasts = toasts.map(t => t.id === id ? { ...t, done: true, secs: 0, msg: 'Rest complete' } : t);
+    // notifications if enabled and hidden (item 5)
+    if ($settings.enableTimerNotifications && typeof Notification !== 'undefined') {
+      if (Notification.permission === 'granted' && document.visibilityState === 'hidden') {
+        new Notification('Rest done', { body: 'Time for next set', tag: 'gymtrack-rest' });
+      } else if (Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
+      }
+    }
+    // auto remove after short time
+    setTimeout(() => {
+      toasts = toasts.filter(t => t.id !== id);
+    }, 1800);
+  }
+
+  function dismissToast(id: number) {
+    toasts = toasts.filter(t => t.id !== id);
+  }
 
   onMount(async () => {
     allExercises = await db.getExercises('', '');
@@ -58,6 +97,7 @@
     workoutNotes = detail.notes || '';
     summary = null;
     timerSec = 0;
+    toasts = [];
 
     // Build items from existing workout_ex + sets (which may have planned values)
     items = (detail.exercises || []).map((ex: any) => ({
@@ -68,6 +108,8 @@
         muscle_groups: ex.muscle_groups,
       },
       sets: (ex.sets || []).map((s: any) => ({ ...s })), // copy
+      restSeconds: ex.rest_seconds,
+      supersetGroup: ex.superset_group ?? null,
     }));
 
     clearPauses(); // fresh tracking for this session
@@ -93,6 +135,7 @@
     items = [];
     summary = null;
     timerSec = 0;
+    toasts = [];
     clearPauses();
   }
 
@@ -101,8 +144,9 @@
     const ex = allExercises.find(e => e.id === selectedExId);
     if (!ex) return;
     const order = items.length + 1;
-    const weId = await db.addWorkoutExercise(currentWorkoutId, ex.id, order);
-    items = [...items, { weId, exercise: ex, sets: [] }];
+    const rest = $settings.perExerciseRestTimes ? $settings.defaultRestSeconds : undefined;
+    const weId = await db.addWorkoutExercise(currentWorkoutId, ex.id, order, rest ?? 180, null);
+    items = [...items, { weId, exercise: ex, sets: [], restSeconds: rest }];
     selectedExId = 0;
   }
 
@@ -120,8 +164,9 @@
       allExercises = [...allExercises, ex];
     }
     const order = items.length + 1;
-    const weId = await db.addWorkoutExercise(currentWorkoutId, ex.id, order);
-    items = [...items, { weId, exercise: ex, sets: [] }];
+    const rest = $settings.perExerciseRestTimes ? $settings.defaultRestSeconds : undefined;
+    const weId = await db.addWorkoutExercise(currentWorkoutId, ex.id, order, rest ?? 180, null);
+    items = [...items, { weId, exercise: ex, sets: [], restSeconds: rest }];
     quickAddName = '';
   }
 
@@ -177,15 +222,22 @@
     const newDone = !s.completed;
     updateSetLocal(weIdx, setIdx, 'completed', newDone ? 1 : 0);
 
-    // Track pause time locally when completing a set
     if (newDone) {
-      const now = Date.now();
-      if (lastDoneTime[weId] != null) {
-        const pauseSec = Math.round((now - lastDoneTime[weId]) / 1000);
-        if (!pauseTimes[weId]) pauseTimes[weId] = [];
-        pauseTimes[weId] = [...pauseTimes[weId], pauseSec];
+      afterSetMarkedDone(weIdx);
+
+      // Supersets: if you mark a set done on the 1st exercise of the pair,
+      // also mark the first (next) undone set on the 2nd exercise done.
+      if (it.supersetGroup != null) {
+        const pairIdx = items.findIndex((x, j) => j !== weIdx && x.supersetGroup === it.supersetGroup);
+        if (pairIdx !== -1 && weIdx < pairIdx) {
+          const pairIt = items[pairIdx];
+          const firstUndoneIdx = pairIt.sets.findIndex((s: any) => !s.completed);
+          if (firstUndoneIdx !== -1) {
+            updateSetLocal(pairIdx, firstUndoneIdx, 'completed', 1);
+            afterSetMarkedDone(pairIdx);
+          }
+        }
       }
-      lastDoneTime[weId] = now;
     }
   }
 
@@ -237,11 +289,72 @@
   }
 
   function getAvgPause(weIdx: number): number {
+    if (!$settings.pauseTrackingEnabled) return 0;
     const weId = items[weIdx]?.weId;
     const times = (weId != null ? pauseTimes[weId] : []) || [];
     if (times.length === 0) return 0;
     const sum = times.reduce((a, b) => a + b, 0);
     return Math.round(sum / times.length);
+  }
+
+  function getRestSeconds(weIdx: number): number {
+    if (!$settings.pauseTrackingEnabled) return 0;
+    const it = items[weIdx];
+    if ($settings.perExerciseRestTimes && it && it.restSeconds != null) {
+      return it.restSeconds;
+    }
+    return $settings.defaultRestSeconds || 180;
+  }
+
+  function changeRest(weIdx: number, delta: number) {
+    const it = items[weIdx];
+    if (!it) return;
+    const cur = it.restSeconds ?? getRestSeconds(weIdx);
+    const val = Math.max(30, Math.min(600, cur + delta));
+    it.restSeconds = val;
+    if (it.supersetGroup != null) {
+      items.forEach(x => { if (x.supersetGroup === it.supersetGroup) x.restSeconds = val; });
+    }
+    items = [...items];
+  }
+
+  function afterSetMarkedDone(weIdx: number) {
+    const it = items[weIdx];
+    if (!it) return;
+    const weId = it.weId;
+    const now = Date.now();
+    if ($settings.pauseTrackingEnabled) {
+      if (lastDoneTime[weId] != null) {
+        const pauseSec = Math.round((now - lastDoneTime[weId]) / 1000);
+        if (!pauseTimes[weId]) pauseTimes[weId] = [];
+        pauseTimes[weId] = [...pauseTimes[weId], pauseSec];
+      }
+      lastDoneTime[weId] = now;
+
+      // superset: only trigger shared pause after both in the pair (exactly 2) have done their set
+      let trigger = true;
+      if (it.supersetGroup != null) {
+        const g = it.supersetGroup;
+        const gis = items.filter(x => x.supersetGroup === g);
+        if (gis.length > 2) {
+          trigger = false;
+        } else {
+          const myDone = it.sets.filter((s:any) => s.completed).length;
+          if (!gis.every(x => x.sets.filter((s:any) => s.completed).length >= myDone)) trigger = false;
+        }
+      }
+      if (trigger) {
+        const rest = getRestSeconds(weIdx);
+        timerPreset = rest;
+        if (currentAutoToastId) finishToast(currentAutoToastId);
+        const tid = showToast('Rest', rest);
+        currentAutoToastId = tid;
+        if ($settings.enableTimerNotifications && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+          Notification.requestPermission().catch(() => {});
+        }
+        startTimer(tid);
+      }
+    }
   }
 
   function shouldShowPerSet(weIdx: number): boolean {
@@ -276,17 +389,31 @@
     return Math.round(v);
   }
 
-  function startTimer() {
+  function startTimer(autoToastId?: number) {
     stopTimer();
     timerSec = timerPreset;
+    if (autoToastId) currentAutoToastId = autoToastId;
     timerInterval = setInterval(() => {
       timerSec--;
-      if (timerSec <= 0) stopTimer();
+      if (currentAutoToastId && timerSec >= 0) {
+        updateToast(currentAutoToastId, timerSec);
+      }
+      if (timerSec <= 0) {
+        if (currentAutoToastId) {
+          finishToast(currentAutoToastId);
+          currentAutoToastId = null;
+        }
+        stopTimer();
+      }
     }, 1000);
   }
   function stopTimer() {
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = null;
+    if (currentAutoToastId) {
+      // keep the toast if we want, or finish? for manual stop leave it
+      currentAutoToastId = null;
+    }
   }
 
   async function endWorkout() {
@@ -306,6 +433,7 @@
     items = [];
     workoutName = '';
     workoutNotes = '';
+    toasts = [];
   }
 
   function resetAll() {
@@ -343,6 +471,18 @@
       <button class="btn danger" onclick={endWorkout}>END WORKOUT</button>
     </div>
 
+    <!-- Simple toasts for auto rest (position tunable via settings) -->
+    {#if toasts.length}
+      <div class="toasts" style="top: {$settings.toastOffsetTop}px">
+        {#each toasts as t (t.id)}
+          <div class="toast" class:done={t.done}>
+            <span>{t.msg}{t.secs != null ? ` — ${t.secs}s` : ''}</span>
+            <button class="tiny" onclick={() => dismissToast(t.id)}>×</button>
+          </div>
+        {/each}
+      </div>
+    {/if}
+
     <!-- add exercise -->
     <div class="add-ex">
       <select class="input" bind:value={selectedExId}>
@@ -361,17 +501,18 @@
     <!-- exercises + sets -->
     {#each items as it, i (it.weId)}
       <div class="ex-block">
-        <div class="ex-head"><strong>{it.exercise.name}</strong></div>
-
-        <!-- Rest timer per exercise card (touch friendly, above sets).
-             Use for in-between sets. New presets include 180s, 260s. -->
-        <div class="timer">
-          <span>Rest:</span>
-          {#each restPresets as sec}
-            <button class="btn" onclick={() => { timerPreset = sec; startTimer(); }}>{sec}s</button>
-          {/each}
-          <strong>{timerSec}s</strong>
-          <button class="btn" onclick={stopTimer}>stop</button>
+        <div class="ex-head">
+          <strong>{it.exercise.name}</strong>
+          {#if it.supersetGroup != null}<span class="ss">superset</span>{/if}
+          {#if $settings.pauseTrackingEnabled && $settings.perExerciseRestTimes}
+            <span class="rest-edit">
+              rest
+              <button class="tiny" onclick={() => changeRest(i, -15)}>-15</button>
+              <input type="number" class="num small" value={it.restSeconds ?? getRestSeconds(i)} oninput={(e:any) => { const v = parseInt(e.target.value)||180; const itm=items[i]; if(itm){ itm.restSeconds = Math.max(30,Math.min(600,v)); if(itm.supersetGroup!=null) items.forEach(x=>{if(x.supersetGroup===itm.supersetGroup) x.restSeconds=itm.restSeconds;}); items=[...items]; } }} />
+              <button class="tiny" onclick={() => changeRest(i, 15)}>+15</button>
+              s
+            </span>
+          {/if}
         </div>
 
         <!-- Weight controls: buttons + value all in one compact line -->
@@ -435,7 +576,7 @@
         </div>
 
         <!-- Show average pause time after all sets of this exercise are done (tracked locally between done sets) -->
-        {#if allSetsDone(it)}
+        {#if $settings.pauseTrackingEnabled && allSetsDone(it)}
           <div class="pause-info">
             Avg pause: <strong>{getAvgPause(i)}s</strong>
           </div>
@@ -471,12 +612,7 @@
   .add-ex { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; overflow: hidden; }
   .start .input,
   .active-head .input { flex: 1 1 0; min-width: 0; width: 100%; }
-  .timer { 
-    display: flex; gap: 4px; align-items: center; 
-    font-variant-numeric: tabular-nums; 
-    margin-bottom: 8px; 
-    flex-wrap: wrap;
-  }
+
 
   .ex-block {
     border: 1px solid var(--border);
@@ -542,8 +678,37 @@
     padding: 6px 10px;
     background: var(--accent-bg);
     border-radius: 4px;
-    display: inline-block;
   }
+
+  .toasts {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .toast.done { border-color: var(--accent); background: var(--accent-bg); }
+  .toast .tiny { padding: 2px 8px; min-height: 28px; font-size: 14px; }
+
+  .ex-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ss { font-size: 10px; background: var(--accent-bg); padding: 1px 4px; border-radius: 3px; display: inline-block; }
+  .rest-edit { font-size: 12px; display: flex; align-items: center; gap: 2px; opacity: 0.8; }
+  .num.small { width: 48px; font-size: 12px; padding: 2px 4px; min-height: 28px; }
 
   .total { font-size: 18px; padding: 8px 0; font-weight: 500; }
 
