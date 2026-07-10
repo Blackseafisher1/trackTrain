@@ -243,7 +243,7 @@ export async function addCustomExercise(name: string, muscleGroups: string[], de
     sql: `INSERT INTO exercises (name, muscle_groups, category, description, is_custom) VALUES (?, ?, 'strength', ?, 1)`,
     bind: [name, JSON.stringify(muscleGroups), description || null],
   });
-  return res.lastInsertRowId || 0;
+  return Number(res.lastInsertRowId) || 0;
 }
 
 export async function updateExercise(id: number, name: string, muscleGroups: string[], description = '') {
@@ -266,7 +266,7 @@ export async function createWorkout(name?: string, notes?: string): Promise<numb
     sql: `INSERT INTO workouts (date, name, notes) VALUES (?, ?, ?)`,
     bind: [now, name || null, notes || null],
   });
-  return res.lastInsertRowId || 0;
+  return Number(res.lastInsertRowId) || 0;
 }
 
 export async function addWorkoutExercise(workoutId: number, exerciseId: number, order: number): Promise<number> {
@@ -274,7 +274,7 @@ export async function addWorkoutExercise(workoutId: number, exerciseId: number, 
     sql: `INSERT INTO workout_exercises (workout_id, exercise_id, exercise_order) VALUES (?, ?, ?)`,
     bind: [workoutId, exerciseId, order],
   });
-  return res.lastInsertRowId || 0;
+  return Number(res.lastInsertRowId) || 0;
 }
 
 export async function addSet(workoutExerciseId: number, setOrder: number, weight?: number, reps?: number, rpe?: number, notes?: string) {
@@ -392,7 +392,7 @@ export async function createPlan(name: string, notes?: string): Promise<number> 
     sql: `INSERT INTO plans (name, notes) VALUES (?, ?)`,
     bind: [name, notes || null],
   });
-  return res.lastInsertRowId || 0;
+  return Number(res.lastInsertRowId) || 0;
 }
 
 export async function addPlanExercise(
@@ -408,7 +408,7 @@ export async function addPlanExercise(
           VALUES (?, ?, ?, ?, ?, ?)`,
     bind: [planId, exerciseId, order, setsCount, defaultWeight ?? null, defaultReps ?? null],
   });
-  return res.lastInsertRowId || 0;
+  return Number(res.lastInsertRowId) || 0;
 }
 
 export async function getPlans(): Promise<any[]> {

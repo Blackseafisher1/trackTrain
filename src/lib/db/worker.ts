@@ -45,7 +45,17 @@ self.onmessage = async (e: MessageEvent) => {
         if (payload.bind) opts.bind = payload.bind;
         const rows = db.exec(payload.sql, opts);
         const changes = sqlite3.capi.sqlite3_changes(db.pointer);
-        const lastInsertRowId = sqlite3.capi.sqlite3_last_insert_rowid(db.pointer);
+        // Capture last insert id *inside* this message handler (immediately after the user's sql)
+        // so that callers get the correct id for *their* insert without a racy follow-up postMessage.
+        // Using a follow-up SELECT in same sync handler guarantees association even under concurrent posts from main.
+        let lastInsertRowId = 0;
+        try {
+          const idRes = db.exec('SELECT last_insert_rowid() as id', { rowMode: 'object' });
+          lastInsertRowId = idRes?.[0]?.id || 0;
+        } catch (_) {
+          lastInsertRowId = sqlite3.capi.sqlite3_last_insert_rowid(db.pointer) || 0;
+        }
+        if (typeof lastInsertRowId === 'bigint') lastInsertRowId = Number(lastInsertRowId);
         result = { rows, changes, lastInsertRowId };
         break;
       }

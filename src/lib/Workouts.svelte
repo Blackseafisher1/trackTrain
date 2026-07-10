@@ -35,6 +35,7 @@
 
   // Prevent double-starts (race on rapid clicks before first insert resolves)
   let startingPlanId = $state<number | null>(null);
+  const inFlightStarts = new Set<number>(); // logic guard (plain set) independent of reactivity timing
 
   async function loadPlans() {
     loading = true;
@@ -203,8 +204,12 @@
   }
 
   async function doStart(p: Plan) {
-    if (startingPlanId) return;
+    if (startingPlanId || inFlightStarts.has(p.id)) return;
+    inFlightStarts.add(p.id);
     startingPlanId = p.id;
+    // defensively clear any pending cross signals to avoid double activation
+    loadWorkoutId = null;
+    clearPendingWorkout();
     try {
       const workoutId = await db.startWorkoutFromPlan(p.id);
       // Directly activate the tracking view inside this component
@@ -214,6 +219,7 @@
     } catch (e) {
       alert('Failed to start workout: ' + e);
     } finally {
+      inFlightStarts.delete(p.id);
       startingPlanId = null;
     }
   }
@@ -375,7 +381,7 @@
             <small class="count">{p.exercise_count || 0} exercises</small>
           </div>
           <div class="pactions">
-            <button class="btn primary" disabled={startingPlanId === p.id} onclick={() => doStart(p)}>
+            <button class="btn primary" disabled={startingPlanId === p.id || inFlightStarts.has(p.id)} onclick={() => doStart(p)}>
               {startingPlanId === p.id ? 'Starting…' : 'Start'}
             </button>
             <button class="btn" onclick={() => startEdit(p)}>Edit</button>
