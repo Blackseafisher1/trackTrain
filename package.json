@@ -25,6 +25,8 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
     "@sqlite.org/sqlite-wasm": "^3.53.0-build1"
   }
 }

@@ -82,8 +82,19 @@
     // notifications if enabled
     if ($settings.enableTimerNotifications && typeof Notification !== 'undefined') {
       if (Notification.permission === 'granted') {
-        // Always try to notify on completion (especially useful for missed timers on reopen)
-        new Notification('Rest done', { body: 'Time for next set', tag: 'gymtrack-rest' });
+        // Try hard to show notification even from backgrounded PWA.
+        // Using tag + renotify can help on some platforms.
+        try {
+          new Notification('Rest done', {
+            body: 'Time for next set',
+            tag: 'gymtrack-rest',
+            renotify: true
+          });
+          // Extra nudge on some platforms
+          if (navigator.vibrate) navigator.vibrate(200);
+        } catch (e) {
+          new Notification('Rest done', { body: 'Time for next set', tag: 'gymtrack-rest' });
+        }
       } else if (Notification.permission === 'default') {
         Notification.requestPermission().catch(() => {});
       }
@@ -102,12 +113,20 @@
     allExercises = await db.getExercises('', '');
     checkMissedRestTimer();
 
-    // Check for missed timers when app comes back to foreground
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        checkMissedRestTimer();
+    // Aggressively wake and check on any possible resume event (helps with background)
+    const wakeAndCheck = () => {
+      if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume().catch(() => {});
       }
+      checkMissedRestTimer();
+    };
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') wakeAndCheck();
     });
+    window.addEventListener('focus', wakeAndCheck);
+    window.addEventListener('pageshow', wakeAndCheck);
+    document.addEventListener('resume', wakeAndCheck); // some PWAs
   });
 
   onDestroy(() => {
@@ -458,18 +477,28 @@
         timerWorker = null;
       }
       const workerCode = `
-        let t;
-        self.onmessage = (e) => {
-          if (t) clearTimeout(t);
-          const delay = Math.max(0, e.data.end - Date.now());
-          t = setTimeout(() => {
+        let timer;
+        function check(end) {
+          if (Date.now() >= end) {
             self.postMessage('done');
-          }, delay);
+            return;
+          }
+          // Recurring check every ~1500ms. This survives background better than one giant timeout.
+          timer = setTimeout(() => check(end), 1500);
+        }
+        self.onmessage = (e) => {
+          if (timer) clearTimeout(timer);
+          const end = e.data.end;
+          check(end);
         };
       `;
       const blob = new Blob([workerCode], { type: 'application/javascript' });
       timerWorker = new Worker(URL.createObjectURL(blob));
       timerWorker.onmessage = () => {
+        // Try to wake audio + main thread
+        if (audioContext && audioContext.state === 'suspended') {
+          audioContext.resume().catch(() => {});
+        }
         if (currentAutoToastId) {
           finishToast(currentAutoToastId);
           currentAutoToastId = null;
@@ -490,30 +519,39 @@
         audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       if (audioContext.state === 'suspended') {
-        audioContext.resume();
+        audioContext.resume().catch(() => {});
       }
 
-      // Use a silent oscillator (gain=0) - very cheap, works for long durations
-      // This keeps the audio context "active" in background on many browsers/PWAs
+      // One of the more effective known client-side "keep alive" tricks for backgrounded PWAs:
+      // A very low frequency (inaudible) sine wave at tiny volume, looping.
+      // This often prevents the browser from fully suspending JS/timers better than pure silence.
       const osc = audioContext.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = 20; // below human hearing for most people
+
       const gain = audioContext.createGain();
-      gain.gain.value = 0; // silent
+      gain.gain.value = 0.0002; // extremely quiet
 
       osc.connect(gain);
       gain.connect(audioContext.destination);
       osc.start();
 
-      // Schedule stop after duration +1s
-      const stopTime = audioContext.currentTime + durationSec + 1;
-      osc.stop(stopTime);
-
-      // Stop previous if any
+      // Store so we can stop it later
       if (silenceSource) {
         try { silenceSource.stop(); } catch (_) {}
       }
       silenceSource = osc;
+
+      // Schedule a hard stop after the duration + 1s
+      setTimeout(() => {
+        if (silenceSource === osc) {
+          try { osc.stop(); } catch (_) {}
+          if (silenceSource === osc) silenceSource = null;
+        }
+      }, (durationSec + 1) * 1000);
+
     } catch (e) {
-      // AudioContext may fail (e.g. no audio permission/context), ignore
+      // ignore - audio may not be available
     }
   }
 
@@ -536,7 +574,9 @@
     // Start silent audio to keep the PWA process alive in background
     startSilentAudio(rest);
 
-    // UI refresh interval (smooth countdown while page is foreground/visible)
+    // UI + safety interval (runs when the page gets CPU time).
+    // This is important in background: even if throttled, when the browser gives us a slice,
+    // we check the absolute end time and fire the notification if overdue.
     timerInterval = setInterval(() => {
       const stored = localStorage.getItem(REST_TIMER_END_KEY);
       if (!stored) {
@@ -549,7 +589,22 @@
       if (currentAutoToastId) {
         updateToast(currentAutoToastId, rem);
       }
-    }, 500);
+
+      // Keep trying to keep audio alive
+      if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume().catch(() => {});
+      }
+
+      // Extra safety: if time is up, force completion + notification from main thread
+      if (rem <= 0) {
+        if (currentAutoToastId) {
+          finishToast(currentAutoToastId);
+          currentAutoToastId = null;
+        }
+        clearRestTimerEnd();
+        stopTimer();
+      }
+    }, 800);
 
     // Dedicated Web Worker for the completion timer.
     // Workers have a better chance to execute in background than main thread.
