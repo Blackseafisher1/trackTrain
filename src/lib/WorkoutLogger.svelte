@@ -28,9 +28,15 @@
   let quickAddName = $state('');
 
   // rest timer for auto (starts on mark done for supersets etc.)
+  // NOTE: In background (app minimized/switched away, not fully terminated):
+  // - Main thread intervals are throttled by browser.
+  // - We use a Web Worker + end timestamp for better chance the completion fires.
+  // - Notification can be shown while in background (if browser allows the worker to run).
+  // - No full second-by-second guarantee, but the "done" should trigger.
   let timerSec = $state(0);
   let timerInterval: any = null;
   let timerPreset = $state(180);
+  let timerWorker: Worker | null = null;
 
   // Pause tracking: locally for current session
   // When mark set done, record time since prev done set for that exercise
@@ -47,6 +53,8 @@
   let toasts = $state<any[]>([]); // { id, msg, secs?, done }
   let toastId = 1;
   let currentAutoToastId = $state<number | null>(null);
+
+  const REST_TIMER_END_KEY = 'gymtrack_rest_end';
 
   function showToast(msg: string, secs?: number) {
     if (!$settings.pauseTrackingEnabled) return;
@@ -65,9 +73,12 @@
 
   function finishToast(id: number) {
     toasts = toasts.map(t => t.id === id ? { ...t, done: true, secs: 0, msg: 'Rest complete' } : t);
-    // notifications if enabled and hidden (item 5)
+    localStorage.removeItem('gymtrack_rest_end'); // ensure we don't re-notify on reopen
+
+    // notifications if enabled
     if ($settings.enableTimerNotifications && typeof Notification !== 'undefined') {
-      if (Notification.permission === 'granted' && document.visibilityState === 'hidden') {
+      if (Notification.permission === 'granted') {
+        // Always try to notify on completion (especially useful for missed timers on reopen)
         new Notification('Rest done', { body: 'Time for next set', tag: 'gymtrack-rest' });
       } else if (Notification.permission === 'default') {
         Notification.requestPermission().catch(() => {});
@@ -85,6 +96,14 @@
 
   onMount(async () => {
     allExercises = await db.getExercises('', '');
+    checkMissedRestTimer();
+
+    // Check for missed timers when app comes back to foreground
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        checkMissedRestTimer();
+      }
+    });
   });
 
   // Load a pre-created workout (from Plan). Keeps the planned defaults as starting point.
@@ -113,6 +132,9 @@
     }));
 
     clearPauses(); // fresh tracking for this session
+
+    // Check for any timer that expired while we were away
+    checkMissedRestTimer();
 
     // consume the prop so parent knows we handled it
     if (loadWorkoutId === wid) {
@@ -389,29 +411,125 @@
     return Math.round(v);
   }
 
-  function startTimer(autoToastId?: number) {
-    stopTimer();
-    timerSec = timerPreset;
-    if (autoToastId) currentAutoToastId = autoToastId;
-    timerInterval = setInterval(() => {
-      timerSec--;
-      if (currentAutoToastId && timerSec >= 0) {
+  function clearRestTimerEnd() {
+    localStorage.removeItem(REST_TIMER_END_KEY);
+  }
+
+  function checkMissedRestTimer() {
+    const endStr = localStorage.getItem(REST_TIMER_END_KEY);
+    if (!endStr) return;
+    const end = parseInt(endStr, 10);
+    if (isNaN(end)) {
+      clearRestTimerEnd();
+      return;
+    }
+
+    if (Date.now() >= end) {
+      // Timer expired while app was closed / backgrounded
+      if ($settings.enableTimerNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification('Rest done', { body: 'Time for next set', tag: 'gymtrack-rest' });
+      }
+      // If we have a visible toast for it, finish it
+      if (currentAutoToastId) {
+        finishToast(currentAutoToastId);
+        currentAutoToastId = null;
+      }
+      clearRestTimerEnd();
+    } else {
+      // Still pending — resync the display and restart accurate worker timer
+      const remaining = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      timerSec = remaining;
+      timerPreset = remaining;
+      if (currentAutoToastId) {
         updateToast(currentAutoToastId, timerSec);
       }
-      if (timerSec <= 0) {
+      // Restart the worker for the remaining time (in case previous was throttled)
+      if (timerWorker) {
+        timerWorker.terminate();
+        timerWorker = null;
+      }
+      const workerCode = `
+        let t;
+        self.onmessage = (e) => {
+          if (t) clearTimeout(t);
+          const delay = Math.max(0, e.data.end - Date.now());
+          t = setTimeout(() => {
+            self.postMessage('done');
+          }, delay);
+        };
+      `;
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      timerWorker = new Worker(URL.createObjectURL(blob));
+      timerWorker.onmessage = () => {
         if (currentAutoToastId) {
           finishToast(currentAutoToastId);
           currentAutoToastId = null;
         }
+        clearRestTimerEnd();
         stopTimer();
-      }
-    }, 1000);
+      };
+      timerWorker.postMessage({ end });
+    }
   }
+
+  function startTimer(autoToastId?: number) {
+    stopTimer();
+    const rest = timerPreset;
+    const end = Date.now() + rest * 1000;
+    localStorage.setItem(REST_TIMER_END_KEY, String(end));
+
+    timerSec = rest;
+    if (autoToastId) currentAutoToastId = autoToastId;
+
+    // UI refresh interval (smooth countdown while page is foreground/visible)
+    timerInterval = setInterval(() => {
+      const stored = localStorage.getItem(REST_TIMER_END_KEY);
+      if (!stored) {
+        stopTimer();
+        return;
+      }
+      const e = parseInt(stored, 10);
+      const rem = Math.max(0, Math.ceil((e - Date.now()) / 1000));
+      timerSec = rem;
+      if (currentAutoToastId) {
+        updateToast(currentAutoToastId, rem);
+      }
+    }, 500);
+
+    // Dedicated Web Worker for the completion timer.
+    // Workers have a better chance to execute in background than main thread.
+    const workerCode = `
+      let t;
+      self.onmessage = (e) => {
+        if (t) clearTimeout(t);
+        const delay = Math.max(0, e.data.end - Date.now());
+        t = setTimeout(() => {
+          self.postMessage('done');
+        }, delay);
+      };
+    `;
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    timerWorker = new Worker(URL.createObjectURL(blob));
+    timerWorker.onmessage = () => {
+      if (currentAutoToastId) {
+        finishToast(currentAutoToastId);
+        currentAutoToastId = null;
+      }
+      clearRestTimerEnd();
+      stopTimer();
+    };
+    timerWorker.postMessage({ end });
+  }
+
   function stopTimer() {
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = null;
+    if (timerWorker) {
+      timerWorker.terminate();
+      timerWorker = null;
+    }
+    clearRestTimerEnd();
     if (currentAutoToastId) {
-      // keep the toast if we want, or finish? for manual stop leave it
       currentAutoToastId = null;
     }
   }

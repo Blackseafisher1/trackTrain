@@ -29,6 +29,17 @@
       await db.initDb('/sqlite/');
       ready = true;
 
+      // Check for any missed rest timers from when the app was closed.
+      // JS timers cannot run when the PWA is fully terminated.
+      // We persist end time + check on startup (localStorage approach).
+      const missedEnd = localStorage.getItem('gymtrack_rest_end');
+      if (missedEnd && Date.now() >= parseInt(missedEnd, 10)) {
+        if ($settings.enableTimerNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          new Notification('Rest done', { body: 'Time for next set', tag: 'gymtrack-rest' });
+        }
+        localStorage.removeItem('gymtrack_rest_end');
+      }
+
       // Listen for workout start from Workouts tab (simple bridge)
       // Starting opens the tracking UI inside the Workouts tab (no separate Log).
       window.addEventListener('gymtrack:start-plan', (e: any) => {
