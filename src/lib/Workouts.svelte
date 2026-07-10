@@ -88,6 +88,7 @@
   // Consume pending load from start button to show logger
   $effect(() => {
     if (loadWorkoutId && !activeWorkoutId) {
+      editing = false;
       activeWorkoutId = loadWorkoutId;
       loadWorkoutId = null;
       clearPendingWorkout();
@@ -272,10 +273,8 @@
     clearPendingWorkout();
     try {
       const workoutId = await db.startWorkoutFromPlan(p.id);
-      // Directly activate the tracking view inside this component
-      // (show the UI to track weight, reps, sets, pause time per exercise)
+      editing = false; // ensure we exit editor if somehow active
       activeWorkoutId = workoutId;
-      // no alert, view switches immediately via state
     } catch (e) {
       alert('Failed to start workout: ' + e);
     } finally {
@@ -300,7 +299,7 @@
 
 <div class="plans">
   {#key activeWorkoutId}
-    <div transition:fade={{ duration: 180 }}>
+    <div in:fade={{ duration: 150 }}>
       {#if activeWorkoutId}
         <!-- Active tracking session (old flow restored: track weights, sets, pause per exercise) -->
         <div class="active-header">

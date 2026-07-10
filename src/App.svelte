@@ -105,7 +105,7 @@
     </div>
   {:else}
     {#key tab}
-      <div transition:fade={{ duration: 180 }}>
+      <div in:fade={{ duration: 150 }}>
         {#if tab === 'library'}
           <ExerciseLibrary />
         {:else if tab === 'workouts'}
