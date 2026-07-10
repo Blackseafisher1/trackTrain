@@ -6,7 +6,7 @@
   // Mark done, rest timers per card, pause tracking.
   // All changes persist. Progress/history use the logged actual values + completed.
   // Keep simple. One hand friendly.
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import * as db from './db/client';
   import type { Exercise, Set } from './db/types';
   import { calcVolume } from './db/client';
@@ -37,6 +37,10 @@
   let timerInterval: any = null;
   let timerPreset = $state(180);
   let timerWorker: Worker | null = null;
+
+  // Silent audio hack to keep PWA "alive" in background so timers and notifications work
+  let audioContext: AudioContext | null = null;
+  let silenceSource: AudioBufferSourceNode | null = null;
 
   // Pause tracking: locally for current session
   // When mark set done, record time since prev done set for that exercise
@@ -104,6 +108,10 @@
         checkMissedRestTimer();
       }
     });
+  });
+
+  onDestroy(() => {
+    stopTimer();
   });
 
   // Load a pre-created workout (from Plan). Keeps the planned defaults as starting point.
@@ -434,16 +442,17 @@
         finishToast(currentAutoToastId);
         currentAutoToastId = null;
       }
+      stopSilentAudio();
       clearRestTimerEnd();
     } else {
-      // Still pending — resync the display and restart accurate worker timer
+      // Still pending — resync the display and restart accurate worker timer + silent audio
       const remaining = Math.max(0, Math.ceil((end - Date.now()) / 1000));
       timerSec = remaining;
       timerPreset = remaining;
       if (currentAutoToastId) {
         updateToast(currentAutoToastId, timerSec);
       }
-      // Restart the worker for the remaining time (in case previous was throttled)
+      // Restart the worker for the remaining time
       if (timerWorker) {
         timerWorker.terminate();
         timerWorker = null;
@@ -469,6 +478,49 @@
         stopTimer();
       };
       timerWorker.postMessage({ end });
+
+      // Restart silent audio for remaining duration to keep alive
+      startSilentAudio(remaining);
+    }
+  }
+
+  function startSilentAudio(durationSec: number) {
+    try {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+
+      // Use a silent oscillator (gain=0) - very cheap, works for long durations
+      // This keeps the audio context "active" in background on many browsers/PWAs
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      gain.gain.value = 0; // silent
+
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+      osc.start();
+
+      // Schedule stop after duration +1s
+      const stopTime = audioContext.currentTime + durationSec + 1;
+      osc.stop(stopTime);
+
+      // Stop previous if any
+      if (silenceSource) {
+        try { silenceSource.stop(); } catch (_) {}
+      }
+      silenceSource = osc;
+    } catch (e) {
+      // AudioContext may fail (e.g. no audio permission/context), ignore
+    }
+  }
+
+  function stopSilentAudio() {
+    if (silenceSource) {
+      try { silenceSource.stop(); } catch (_) {}
+      silenceSource = null;
     }
   }
 
@@ -480,6 +532,9 @@
 
     timerSec = rest;
     if (autoToastId) currentAutoToastId = autoToastId;
+
+    // Start silent audio to keep the PWA process alive in background
+    startSilentAudio(rest);
 
     // UI refresh interval (smooth countdown while page is foreground/visible)
     timerInterval = setInterval(() => {
@@ -528,6 +583,7 @@
       timerWorker.terminate();
       timerWorker = null;
     }
+    stopSilentAudio();
     clearRestTimerEnd();
     if (currentAutoToastId) {
       currentAutoToastId = null;
